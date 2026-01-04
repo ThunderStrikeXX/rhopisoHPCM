@@ -362,11 +362,12 @@ int main() {
     // Time-stepping loop
     for (int n = 0; n <= time_steps; ++n) {
 
-        u_error_v = 1.0;
-        outer_v = 0;
-
+        // Initializing convergence metrics
         momentum_residual = 1.0;
         temperature_residual = 1.0;
+
+        // Outer iterations variables reset
+        outer_v = 0;
 
         while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 100)) {
 
@@ -417,7 +418,7 @@ int main() {
 
             /// Diffusion coefficients for the first and last node to define BCs
             const double D_first = (4.0 / 3.0) * mu_v[0] / dz;
-            const double D_vast = (4.0 / 3.0) * mu_v[N - 1] / dz;
+            const double D_last = (4.0 / 3.0) * mu_v[N - 1] / dz;
 
             /// Velocity BCs needed variables for the first node
             const double u_r_face_first = 0.5 * (u_v[1]);
@@ -444,13 +445,13 @@ int main() {
 
             if (u_outlet_bc == 0) {                              // Dirichlet BC
                 aVU[N - 1] = 0.0;
-                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
+                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_last - F_l_last);
                 cVU[N - 1] = 0.0;
                 dVU[N - 1] = bVU[N - 1] * u_outlet_value;
             }
             else if (u_outlet_bc == 1) {                          // Neumann BC
-                aVU[N - 1] = -(rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
-                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
+                aVU[N - 1] = -(rho_v[N - 1] * dz / dt + 2 * D_last - F_l_last);
+                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_last - F_l_last);
                 cVU[N - 1] = 0.0;
                 dVU[N - 1] = 0.0;
             }
@@ -464,7 +465,7 @@ int main() {
             // Energy equation for T (implicit), upwind convection, central diffusion
             for (int i = 1; i < N - 1; i++) {
 
-                const double D_v = 0.5 * (k_v[i - 1] + k_v[i]) / dz;      /// [W/(m2 K)]
+                const double D_l = 0.5 * (k_v[i - 1] + k_v[i]) / dz;      /// [W/(m2 K)]
                 const double D_r = 0.5 * (k_v[i + 1] + k_v[i]) / dz;      /// [W/(m2 K)]
 
                 const double avgInvbVU_v = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
@@ -499,7 +500,7 @@ int main() {
                         + (u_v[i] + u_v[i - 1]) * (u_v[i] + u_v[i - 1])) / dz;
 
                 aVT[i] =
-                    - D_v
+                    - D_l
                     - std::max(C_l, 0.0)
                     ;                                   /// [W/(m2K)]
 
@@ -511,7 +512,7 @@ int main() {
                 bVT[i] =
                     + std::max(C_r, 0.0)
                     + std::max(-C_l, 0.0)
-                    + D_v + D_r
+                    + D_l + D_r
                     + rho_v[i] * cp_v[i] * dz / dt;          /// [W/(m2 K)]
 
                 dVT[i] =
@@ -558,8 +559,7 @@ int main() {
             T_v_prev = T_v;
             T_v = tdma::solve(aVT, bVT, cVT, dVT);
 
-            rho_error_v = 1.0;
-            p_error_v = 1.0;
+            // Inner iterations variables reset
             inner_v = 0;
 
             continuity_residual = 1.0;
